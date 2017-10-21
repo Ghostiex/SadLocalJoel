@@ -7,13 +7,17 @@ public class LevelMusicControl : MonoBehaviour {
     public AudioMixerSnapshot outOfZone;
     public AudioMixerSnapshot inZone;
     public AudioClip[] stings;
-    public AudioSource stingSource;
+    public AudioSource songIN;
+    public AudioSource songOut;
+
     public float bpm = 130;
 
     private float m_TrainsitionIn;
     private float m_TrainsitionOut;
     private float m_QuaterNote;
-
+    bool musicMain;
+    private int count;
+    
     void Start()
     {
         m_QuaterNote = 60 / bpm;
@@ -21,6 +25,10 @@ public class LevelMusicControl : MonoBehaviour {
         m_TrainsitionOut = m_QuaterNote * 32;
     }
 
+    private void FixedUpdate()
+    {
+        
+    }
     //void OnTriggerEnter(Collider other)
     //{
     //    if (other.CompareTag("TriggerZone"))
@@ -28,35 +36,64 @@ public class LevelMusicControl : MonoBehaviour {
     //        inZone.TransitionTo(m_TrainsitionIn);
     //    }
     //}
-    //    void OnTriggerExit(Collider other)
-    //    {
-    //    if (other.CompareTag("TriggerZone"))
-    //    {
-    //        outOfZone.TransitionTo(m_TrainsitionOut);
-    //    }
-
-    //}
-    // void OnTriggerEnter2D(Collider2D other)
-    //{
-    //    if (other.CompareTag("TriggerZone"))
-    //    {
-    //        inZone.TransitionTo(m_TrainsitionIn);
-    //    }
-    //}
-
-    // void OnTriggerExit2D(Collider2D other)
+    //void OnTriggerExit(Collider other)
     //{
     //    if (other.CompareTag("TriggerZone"))
     //    {
     //        outOfZone.TransitionTo(m_TrainsitionOut);
     //    }
-    //}
 
-     void OnTriggerEnter2D(Collider2D other)
+    //}
+    void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.gameObject.tag == "MusicPlayer")
+        ++count;
+        musicMain = true;
+        songIN.Stop();
+        if (count == 1)
         {
-            
+        EnterZone();
+
+        }
+        if (other.CompareTag("TriggerZone"))
+        {
+            inZone.TransitionTo(m_TrainsitionIn);
         }
     }
+
+    void OnTriggerExit2D(Collider2D other)
+    {
+        --count;
+        musicMain = false;
+        songOut.Stop();
+        if(count == 0)
+        {
+        EnterZone();
+
+        }
+        if (other.CompareTag("TriggerZone"))
+        {
+            outOfZone.TransitionTo(m_TrainsitionOut);
+
+        }
+    }
+    public void EnterZone()
+    {
+        if  (musicMain == true)
+        {
+            
+            songOut.Play();
+        }
+        else
+        {
+            songIN.Play();
+        }
+    }
+
+    //void OnTriggerEnter2D(Collider2D other)
+    //{
+    //    if (other.gameObject.tag == "MusicPlayer")
+    //    {
+
+    //    }
+    //}
 }

@@ -5,6 +5,10 @@ TagManager:
   serializedVersion: 2
   tags:
   - Ground
+  - Player2
+  - TriggerZone
+  - Crosshair
+  - Deadly
   layers:
   - Default
   - TransparentFX
@@ -18,8 +22,8 @@ TagManager:
   - Player
   - Wall
   - Interactable Objects
-  - 
-  - 
+  - Ball
+  - Projectiles
   - 
   - 
   - 
@@ -50,4 +54,7 @@ TagManager:
     locked: 0
   - name: Characters
     uniqueID: 416759127
+    locked: 0
+  - name: Character hands
+    uniqueID: 3433480999
     locked: 0
