@@ -1,26 +1,28 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Analytics;
 
 public class PlayerAbilities : MonoBehaviour
 {
-
-    public Rigidbody2D rb2D;
-    int layer_mask;
-    Vector2 direction;
     public string nextAbilityInput;
     public string buttonInput; //The button tells us which player is attempting to use an ability
     public string chosenAbility; //what ability is being used
-    public float mana;
-    public float shots;
+
+    int layer_mask;
+    float mana;
+    float shots;
+    bool buttonPressed;
+
+    Vector2 direction;
     List<string> abilityList;
     DistanceJoint2D distanceJoint;
     SpringJoint2D springJoint;
-    bool buttonPressed;
+    PlayerController player;
+   public  AnalyticsTracker analyticsTracker;
 
     void Start()
     {
-        rb2D = GetComponent<Rigidbody2D>();
         layer_mask = LayerMask.GetMask("Interactable Objects"); // Used in raycast to only hit objects on a specific layer
         mana = 5;
         shots = 1;
@@ -35,12 +37,14 @@ public class PlayerAbilities : MonoBehaviour
         abilityList.Add("RopeAbility");
 
         chosenAbility = abilityList[0];
+
+        player = gameObject.GetComponent<PlayerController>();
     }
 
     void Update()
     {
         //Change Ability
-        if (Input.GetButtonDown(nextAbilityInput)) 
+        if (Input.GetButtonDown(nextAbilityInput))
         {
             int temp = 0;
 
@@ -63,11 +67,9 @@ public class PlayerAbilities : MonoBehaviour
 
         else if (Input.GetButtonDown(buttonInput))
         {
-            if (chosenAbility == "SizeGun" || chosenAbility == "StandardAbility")
+            analyticsTracker.TriggerEvent();
+            if (chosenAbility == "SizeGun" || chosenAbility == "StandardAbility" || chosenAbility == "RopeAbility")
                 CastRayAbility();
-
-            if (chosenAbility == "RopeAbility")
-                CastAlternativeRayAbility();
 
             //Using shots variable to make sure you can only shoot one at a time, setting the value of shot back to 1 
             //in ShootBall when the TeleportBallEvent method is called, maybe not the best solution to 
@@ -86,9 +88,8 @@ public class PlayerAbilities : MonoBehaviour
     /// </summary>
     void CastRayAbility()
     {
-        direction = gameObject.transform.localScale; // choosing direction for the raycast
-        direction.y = 0;
-        //Debug.DrawRay(transform.position, direction, Color.red, 10);
+        direction = player.crosshair.transform.position - gameObject.transform.position;
+        Debug.DrawRay(transform.position, direction, Color.red, 10);
 
         if (Physics2D.Raycast(transform.position, direction, 7, layer_mask)) //checking for objects that the raycast hits
         {
@@ -96,30 +97,18 @@ public class PlayerAbilities : MonoBehaviour
                                                                                                 //Debug.Log(hit.collider.gameObject.name);
             if (chosenAbility == "StandardAbility")
             {
+                Debug.DrawRay(transform.position, direction, Color.red, 10);
                 if (buttonInput == "UseAbilityP2") // find direction object should move in
-                    direction.x -= direction.x * 2;
+                    direction = direction * -1;
 
                 hit.collider.gameObject.SendMessage(chosenAbility, direction); //Sending message to object telling it what ability has been used on it, plus a direction (for standard ability)
             }
 
             else if (chosenAbility == "SizeGun")
                 hit.collider.gameObject.SendMessage(chosenAbility, buttonInput);
-        }
-    }
 
-    /// <summary>
-    /// Casts a Ray and then uses ability
-    /// </summary>
-    void CastAlternativeRayAbility()
-    {
-        if (chosenAbility == "RopeAbility" && !buttonPressed) //If the input button has not been pressed, the ability can be used
-        {
-            Vector3 target = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            target.z = 0;
-
-            if (Physics2D.Raycast(transform.position, target - transform.position, 7, layer_mask))
+            else if (chosenAbility == "RopeAbility" && !buttonPressed) //If the input button has not been pressed, the ability can be used
             {
-                RaycastHit2D hit = Physics2D.Raycast(transform.position, target - transform.position, 7, layer_mask); //A raycast from the player to the mouse cursor's position
                 if (buttonInput == "UseAbilityP1")
                 {
                     //Creates a dinstance joint connected between the player and the interactable object
@@ -142,14 +131,11 @@ public class PlayerAbilities : MonoBehaviour
                     springJoint.distance = 0.005f;
                     springJoint.dampingRatio = 1f;
                     springJoint.frequency = 2f;
-                    springJoint.connectedAnchor = target;
+                    springJoint.connectedAnchor = hit.point;
                 }
             }
-
             buttonPressed = true;
         }
-
-        //If the input button has already been pressed, and a joint is connected to an object, then the joint is destroyed
         else if (chosenAbility == "RopeAbility" && buttonPressed)
         {
             if (buttonInput == "UseAbilityP1")
@@ -191,7 +177,9 @@ public class PlayerAbilities : MonoBehaviour
     {
         return chosenAbility;
     }
+
+    public void ResetShot(int newShotsValue)
+    {
+        shots = newShotsValue;
+    }
 }
-
-
-

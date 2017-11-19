@@ -2,16 +2,23 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerController : MonoBehaviour {
+public class PlayerController : MonoBehaviour{
 
     //Public fields
     public int playerNumber;
 
-    public float speed = 3f;
-    public float maxSpeed = 10f;
-    public float crouchSpeed = 2f;
-    public float jumpForce = 5000f;
-    public bool shooting;
+    [SerializeField]
+    private float speed = 3f;
+    [SerializeField]
+    private float maxSpeed = 10f;
+    [SerializeField]
+    private float crouchSpeed = 2f;
+    [SerializeField]
+    private float jumpForce = 5000f;
+    [SerializeField]
+    private float wallJumpForce = 20f;
+    [SerializeField]
+    private float jumpPushForce = 40f;
 
     public Transform wallCheck;
     public float wallCheckRadius;
@@ -20,11 +27,6 @@ public class PlayerController : MonoBehaviour {
     public Transform groundCheck;
     public float groundCheckRadius;
     public LayerMask whatIsGround;
-    public LayerMask whatIsObject;
-
-    public Vector2 position;
-    public Rigidbody2D ridgidbodyPlayer;
-    public AudioSource jumping; 
 
     public GameObject teleportBall;
     public GameObject crosshair;
@@ -37,80 +39,105 @@ public class PlayerController : MonoBehaviour {
     //Private fields 
     private bool jumpState;
     private bool oldJumpState;
+    private bool cancelJump;
     private bool grounded;
     private bool hasDoubleJumped;
     private bool isOnWall;
     private bool crouchState;
-    private bool standingOnObject;
+    private bool facingRight;
+    private bool shooting;
+    private bool wallJumped = false;
+    private bool wallJumping = false;
+    private bool insideAntigravArea;
 
     private float horizontalInput;
+    private float aimInput;
+    private float aimingSpeed;
+    private float worldHalfSize;
     private Vector2 velocity;
+    private Vector3 initialVector = Vector3.forward;
+    private Vector3 worldSize;
 
-    //private Animator animator;
-
+    private Rigidbody2D ridgidbodyPlayer;
     private GameObject defaultCollider;
     private GameObject crouchCollider;
 
+    private PlayerAbilities playerAbilities;
+
+    private AudioSource jumping;
+
+    private float mudFloorJumpForce = 1000f;
+    private bool standingOnMudFloor;
+    private bool mudFloorJumping;
 
     /// <summary>
     /// initialize conponents of the player here
     /// </summary>
     void Start ()
     {
-        //crosshair = GameObject.FindGameObjectWithTag("Crosshair");
-
         ridgidbodyPlayer = gameObject.GetComponent<Rigidbody2D>();
-        //animator = gameObject.GetComponent<Animator>();
+        transform.localScale = new Vector3(1, 1, 1);
+        facingRight = true;
 
         defaultCollider = transform.Find("Default Collider").gameObject;
         crouchCollider = transform.Find("Crouch Collider").gameObject;
-
         crouchCollider.SetActive(false);
-        //crosshair.SetActive(false);
+
+        aimingSpeed = 70f;
+
+        worldSize = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, 0.0f, 0.0f));
+        worldHalfSize = this.GetComponentInChildren<Renderer>().bounds.size.x / 2;
+
+        jumping = gameObject.GetComponent<AudioSource>();
+
+        playerAbilities = gameObject.GetComponent<PlayerAbilities>();
     }
-	
-	/// <summary>
+
+    private void OnTriggerStay2D(Collider2D collision)
+    {
+        if (collision.gameObject.tag == "Teleport antigrav field")
+        {
+            insideAntigravArea = true;
+        }
+    }
+
+    private void OnTriggerExit2D(Collider2D collision)
+    {
+        if (collision.gameObject.tag == "Teleport antigrav field")
+        {
+            insideAntigravArea = false;
+            shooting = false;
+            playerAbilities.SendMessage("ResetShot", 1);
+        }
+    }
+
+    private void OnCollisionStay2D(Collision2D collision)
+    {
+        if (collision.gameObject.layer == LayerMask.NameToLayer("Mud floor"))
+        {
+            standingOnMudFloor = true;
+        }
+    }
+
+    private void OnCollisionExit2D(Collision2D collision)
+    {
+        if (collision.gameObject.layer == LayerMask.NameToLayer("Mud floor"))
+        {
+            standingOnMudFloor = false;
+        }
+    }
+
+    /// <summary>
     /// Update is called once a frame
     /// </summary>
-	void Update ()
+    void Update ()
     {
-        if (Input.GetButtonDown("Fire" + playerNumber) && shooting == false)
-        {
-            ShootTeleportBall();
-        }
-        //else
-        //    shooting = false;
+        aimInput = Input.GetAxis("Aim" + playerNumber);     
+        cancelJump = Input.GetButtonUp("Jump" + playerNumber);
+        crouchState = Input.GetButton("Crouch" + playerNumber);
+        horizontalInput = Input.GetAxis("Horizontal" + playerNumber);
 
-
-        //Behöver kolla vilket håll spelaren står på och ändra riktningen som siktet roteras på efter det
-        if (Input.GetAxis("Aim"+playerNumber) == 1)
-        {
-            //crosshair.SetActive(true);
-            crosshair.SendMessage("RotateObject", -2);
-
-        }
-
-        if (Input.GetAxis("Aim" + playerNumber) == -1)
-        {
-            //crosshair.SetActive(true);
-            crosshair.SendMessage("RotateObject", 2); 
-        }
-
-        //if (Input.GetKeyUp(KeyCode.N))
-        //{
-        //    crosshair.SetActive(false);
-        //}
-
-        //if (Input.GetKeyUp(KeyCode.Space))
-        //{
-        //    crosshair.SetActive(false);
-        //}
-
-        if (grounded)
-            hasDoubleJumped = false;
-
-        position.x = transform.position.x;
-        position.y = transform.position.y;
+        AimCrosshairRelativeToPlayer(aimInput);
 
         if (crouchState)
         {
@@ -133,10 +160,9 @@ public class PlayerController : MonoBehaviour {
           Set player bools grounded and isOnWall based on if the Ground Check and Wall Check transforms
           (which are placed on the player) are overlaping the LayerMask that specifies what counts as a
           wall or ground.
-        */ 
+        */
         grounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, whatIsGround);
         isOnWall = Physics2D.OverlapCircle(wallCheck.position, wallCheckRadius, whatIsWall);
-        standingOnObject = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, whatIsObject);
 
         bodyAnimator.SetBool("Ground", grounded);
         handsAnimator.SetBool("Ground", grounded);
@@ -144,33 +170,79 @@ public class PlayerController : MonoBehaviour {
         bodyAnimator.SetFloat("xSpeed", Mathf.Abs(horizontalInput));
         handsAnimator.SetFloat("xSpeed", Mathf.Abs(horizontalInput));
 
-        //Jumpstate is used to check if the player has pressed the jump button
         oldJumpState = jumpState;
         jumpState = Input.GetButton("Jump" + playerNumber);
-        crouchState = Input.GetButton("Crouch" + playerNumber);
 
-        Movement();
-        SpeedLimit();
-        TurnToInputDirection();
+        CheckSpeedLimit();
 
-        //Check if a player has pressed the jump button and is standing on ground
-        if (jumpState && !oldJumpState && grounded)
+        //Walljump is ended when on ground and ability to doublejump is reset
+        if (grounded)
         {
-            Jump();           
+            hasDoubleJumped = false;
+            wallJumping = false;
+            mudFloorJumping = false;
         }
 
-        //Check if a player is pressing jump in the air after the player has jumped once
-        if (jumpState && !oldJumpState && !grounded && !hasDoubleJumped)
+        //Dont allow the player to turn or move during a walljump
+        if (!wallJumping)
+        {
+            TurnToInputDirection();
+            Movement();
+        }
+
+        if (wallJumped)
+        {
+            WallJump();
+        }
+
+        //Check if a player has pressed the jump button and is standing on ground
+        if (jumpState && !oldJumpState && grounded && !standingOnMudFloor)
+        {
+            Jump();
+        }
+
+        if (jumpState && !oldJumpState && grounded && standingOnMudFloor)
+        {
+            MudFloorJump();
+        }
+
+        ////Check if a player is pressing jump in the air after the player has jumped once
+        if (jumpState && !oldJumpState && !grounded && !hasDoubleJumped && !isOnWall && !mudFloorJumping)
         {
             Jump();
             hasDoubleJumped = true;
         }
 
-        //Check if a player is up against a wall, if so it counts as staning on the ground
-        if (isOnWall || standingOnObject)
+        if (jumpState && !oldJumpState && !grounded && !hasDoubleJumped && !isOnWall && mudFloorJumping)
         {
-            grounded = false;
-            hasDoubleJumped = false;
+            MudFloorJump();
+            hasDoubleJumped = true;
+        }
+
+        //Check if a player is up against a wall, if so it counts as staning on the ground
+        if (jumpState && !oldJumpState && isOnWall && !grounded) //|| standingOnObject)
+        {
+            wallJumped = true; 
+            hasDoubleJumped = true;
+        }
+
+        //Used to cancel a players jump if they release the jump button before reaching the pivot point
+        if (cancelJump)
+        {
+            if (velocity.y > 0)
+            {
+                velocity.y = velocity.y * .5f;
+                ridgidbodyPlayer.velocity = new Vector2(ridgidbodyPlayer.velocity.x, velocity.y);
+            }
+        }
+
+        //Make players fall slower when on walls to create a gliding effect, making it easier to walljmp
+        if (isOnWall)
+        {
+             if (ridgidbodyPlayer.velocity.y < 0)
+            {
+                ridgidbodyPlayer.velocity = new Vector2(0, ridgidbodyPlayer.velocity.y * 0.5f);
+            }
         }
     }
 
@@ -181,8 +253,6 @@ public class PlayerController : MonoBehaviour {
     /// </summary>
     private void Movement()
     {
-        horizontalInput = Input.GetAxis("Horizontal" + playerNumber);
-
         //If crouching the players speed in the X-axis is decreased
         if (crouchState)
             velocity.x = (crouchSpeed * horizontalInput);
@@ -195,7 +265,34 @@ public class PlayerController : MonoBehaviour {
         velocity.y = this.ridgidbodyPlayer.velocity.y;
 
         //Give the players ridgidbody the newly calculated velocity
-        this.ridgidbodyPlayer.velocity = velocity;
+        if (grounded)
+            this.ridgidbodyPlayer.velocity = velocity;
+
+        else if ((horizontalInput != 0 && !wallJumping))
+            this.ridgidbodyPlayer.velocity = velocity;
+
+        //worldSize = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, 0.0f, 0.0f));
+        //Vector3 worldLeft = Camera.main.ScreenToWorldPoint(new Vector3(0.0f, 0.0f, 0.0f));
+
+        //if (ridgidbodyPlayer.position.x >= worldSize.x - worldHalfSize)
+        //{
+        //    ridgidbodyPlayer.position = new Vector2(worldSize.x - worldHalfSize, ridgidbodyPlayer.position.y);
+        //    Debug.Log("out of bounds");
+        //}
+        //else if (ridgidbodyPlayer.position.x <= (worldLeft.x + worldHalfSize))
+        //{
+        //    ridgidbodyPlayer.position = new Vector2(worldLeft.x + worldHalfSize, ridgidbodyPlayer.position.y);
+        //} 
+    }
+
+    private void LateUpdate()
+    {
+        CheckPlayersInsideCamera();
+    }
+
+    void CheckPlayersInsideCamera()
+    {
+        
     }
 
     /// <summary>
@@ -209,12 +306,30 @@ public class PlayerController : MonoBehaviour {
         ridgidbodyPlayer.AddForce(Vector2.up * jumpForce);
     }
 
+    public void MudFloorJump()
+    {
+        jumping.Play();
+        mudFloorJumping = true;
+        ridgidbodyPlayer.velocity = new Vector2(ridgidbodyPlayer.velocity.x, 0);
+        velocity = ridgidbodyPlayer.velocity;
+        ridgidbodyPlayer.AddForce(Vector2.up * mudFloorJumpForce);
+    }
+
+    public void WallJump()
+    {
+        jumping.Play();
+        ridgidbodyPlayer.velocity = new Vector2(jumpPushForce * (facingRight ? -1 : 1), wallJumpForce);
+        wallJumping = true;
+        Flip();
+        wallJumped = false;
+    }
+
     /// <summary>
     /// Checks if the velocity of the players ridgidbody exceeds the maxSpeed value in both
     /// the positive and negative X-axis, if so the velocity is set to the positive or negative
     /// maxSpeed value respectively
     /// </summary>
-    private void SpeedLimit()
+    private void CheckSpeedLimit()
     {
         if (ridgidbodyPlayer.velocity.x > maxSpeed)
         {
@@ -236,12 +351,23 @@ public class PlayerController : MonoBehaviour {
         if (Input.GetAxis("Horizontal" + playerNumber) < -0.1f)
         {
             transform.localScale = new Vector3(-1, 1, 1);
+            facingRight = false;
         }
 
         if (Input.GetAxis("Horizontal" + playerNumber) > 0.1f)
         {
             transform.localScale = new Vector3(1, 1, 1);
+            facingRight = true;
         }
+    }
+
+    void Flip()
+    {
+        facingRight = !facingRight;
+
+        Vector3 theScale = transform.localScale;
+        theScale.x *= -1;
+        transform.localScale = theScale;
     }
 
     /// <summary>
@@ -265,12 +391,67 @@ public class PlayerController : MonoBehaviour {
         Debug.Log(shootingDirection);
 
         float speed = 15;
-        
+
         shooting = true;
 
-        GameObject ball = Instantiate(teleportBall, wallCheck.position, wallCheck.rotation);
-        ball.GetComponent<ShootBall>().playerShootingString = gameObject.tag;
-        ball.GetComponent<ShootBall>().playerBeingTeleportedString = otherPlayer.tag;
-        ball.SendMessage("AddSpeedToBall", shootingDirection * speed);
+        if (insideAntigravArea == false)
+        {
+            GameObject ball = Instantiate(teleportBall, wallCheck.position, wallCheck.rotation);
+            ball.GetComponent<ShootBall>().playerShootingString = gameObject.tag;
+            ball.GetComponent<ShootBall>().playerBeingTeleportedString = otherPlayer.tag;
+            ball.SendMessage("AddSpeedToBall", shootingDirection * speed);
+        }
+    }
+
+    public void ResetShootingValue(bool shootingValue)
+    {
+        shooting = shootingValue;
+    }
+
+    /// <summary>
+    /// Checks if the player is facing left or right and if the player has given input to move crosshair,
+    /// if player is facing left the crosshair gets a message which sets the initial direction of the crosshair
+    /// to vector3.left, the direction is used to calculate the proper angle between the initial direction of the
+    /// crosshair and the updated direction that is updated by sending a rotate value to the RotateCrosshair method.
+    /// the direction of the rotation is determined by the value of the aimInput.
+    /// </summary>
+    /// <param name="aimInput"></param>
+    void AimCrosshairRelativeToPlayer(float aimInput)
+    {
+        float rotateDegrees = 0f;
+
+        if (facingRight && aimInput != 0)
+        {
+            crosshair.SendMessage("SetInitialVector", Vector3.right);
+
+            if (aimInput == 1)
+            {
+                rotateDegrees -= aimingSpeed * Time.deltaTime;
+            }
+
+            else if (aimInput == -1)
+            {
+                rotateDegrees += aimingSpeed * Time.deltaTime;
+            }
+
+            crosshair.SendMessage("RotateCrosshair", rotateDegrees);
+        }
+
+        if (!facingRight && aimInput != 0)
+        {
+            crosshair.SendMessage("SetInitialVector", Vector3.left);
+
+            if (aimInput == 1)
+            {
+                rotateDegrees += aimingSpeed * Time.deltaTime;
+            }
+
+            else if (aimInput == -1)
+            {
+                rotateDegrees -= aimingSpeed * Time.deltaTime;
+            }
+
+            crosshair.SendMessage("RotateCrosshair", rotateDegrees);
+        }
     }
 }

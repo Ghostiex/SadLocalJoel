@@ -9,6 +9,11 @@ TagManager:
   - TriggerZone
   - Crosshair
   - Deadly
+  - Fire
+  - Teleport destroyer
+  - Teleport antigrav field
+  - Black hole
+  - Black hole exit
   layers:
   - Default
   - TransparentFX
@@ -24,12 +29,12 @@ TagManager:
   - Interactable Objects
   - Ball
   - Projectiles
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  - Teleport antigrav
+  - Black hole
+  - Black hole exit
+  - Teleport destroy field
+  - Teleport passing wall
+  - Mud floor
   - 
   - 
   - 
@@ -57,4 +62,7 @@ TagManager:
     locked: 0
   - name: Character hands
     uniqueID: 3433480999
+    locked: 0
+  - name: InFrontOfCharacters
+    uniqueID: 4211293277
     locked: 0
